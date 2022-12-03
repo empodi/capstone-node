@@ -7,6 +7,8 @@ import userRouter from "./routes/userRouter";
 import chatRouter from "./routes/chatRouter";
 const productRouter = require("./routes/productRouter");
 const imageRouter = require("./routes/imageRouter");
+const { createClient } = require("redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 // const db = require("./tools/authdb");
 
 const app = express();
@@ -54,6 +56,17 @@ const io = socket(server, {
     origin: "*",
     methods: ["GET", "POST", "PUT"],
   },
+});
+
+const pubClient = createClient(process.env.REDIS_PORT, process.env.REDIS_HOST, {
+  auth_pass: process.env.REDIS_AUTH_PASS,
+  legacyMode: true,
+});
+const subClient = pubClient.duplicate();
+//pubClient.connect().then();
+//subClient.connect().then();
+Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+  io.adapter(createAdapter(pubClient, subClient));
 });
 
 io.on("connection", (socket) => {

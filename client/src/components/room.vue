@@ -90,6 +90,7 @@ import { reactive } from "vue";
 import message from "./message.vue";
 import FormData from "form-data";
 const { VITE_SOCKET_URL } = import.meta.env;
+const { VITE_BASE_URL } = import.meta.env;
 const { axiosGet, axiosPost } = useAxios();
 export default {
   name: "room",
@@ -100,7 +101,7 @@ export default {
     return {
       myRoomList: [],
       curRoomName: "",
-      socket: io(VITE_SOCKET_URL),
+      socket: io(VITE_BASE_URL),
       messageObj: {
         sender: "",
         content: "",
@@ -143,6 +144,9 @@ export default {
     },
   },
   mounted() {
+    const store = useUserInfoStore();
+    const nickname = store.userNick;
+    if (nickname != "admin") this.socket = io("http://localhost:8081");
     this.socket.on("joined", (fromServer) => {
       console.log("✅ Joined Room:", fromServer);
     });
@@ -231,7 +235,7 @@ export default {
     },
     sendImage() {
       const onSaveSuccess = (resp) => {
-        console.log("✅ Msg Save Success");
+        console.log("✅ Msg - Image Save Success");
       };
       let data = new FormData();
       const imgObj = this.$refs.chatImage.files[0];
@@ -255,6 +259,8 @@ export default {
           this.newMessageObj.sender = store.userNick;
           this.newMessageObj.content = "";
           this.newMessageObj.imgPath = resp.data.imgPath;
+          const nickname = store.userNick;
+          if (nickname != "admin") this.socket = io("http://localhost:8081");
           this.socket.emit("messageSent", this.newMessageObj);
           axiosPost("/rooms/saveChat", this.newMessageObj, onSaveSuccess);
         })
@@ -264,7 +270,7 @@ export default {
     },
     sendMessage() {
       const onSaveSuccess = (resp) => {
-        console.log("✅ Msg Save Success");
+        console.log("✅ Msg - message Save Success");
       };
       if (this.newMessageObj.content.length > 0) {
         const store = useUserInfoStore();
@@ -274,8 +280,29 @@ export default {
         this.newMessageObj.sender = store.userNick;
         this.newMessageObj.content.trim();
         this.newMessageObj.imgPath = "";
-        this.socket.emit("messageSent", this.newMessageObj);
-        axiosPost("/rooms/saveChat", this.newMessageObj, onSaveSuccess);
+        const sendObj = new Object();
+        sendObj.chatType = "message";
+        sendObj.roomId = this.newMessageObj.roomId;
+        sendObj.time = this.newMessageObj.time;
+        sendObj.sender = store.userNick;
+        sendObj.content = this.newMessageObj.content;
+        sendObj.imgPath = "";
+        const nickname = store.userNick;
+        if (nickname != "admin") {
+          console.log("to socket 8081");
+          this.socket = io("http://localhost:8081");
+        } else {
+          console.log("to sockt 8080");
+        }
+        console.log("From Msg Send Func:", this.socket, sendObj);
+        this.socket.emit("messageSent", sendObj);
+        if (nickname != "admin")
+          axiosPost(
+            "http://localhost:8081/rooms/saveChat",
+            sendObj,
+            onSaveSuccess
+          );
+        else axiosPost("/rooms/saveChat", sendObj, onSaveSuccess);
         this.newMessageObj.content = "";
       }
     },
